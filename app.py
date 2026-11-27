@@ -90,14 +90,47 @@ def find_items(q):
         if score: scored.append((score, r))
     return [r for _,r in sorted(scored, key=lambda x:x[0], reverse=True)]
 
+
 def classify(q):
-    ql=q.lower()
-    if any(x in q for x in ["找","在哪","位置","库位","红色","蓝色","货架","批次"]): return "空间记忆Agent"
-    if any(x in q for x in ["排产","订单","交期","产能","生产计划"]): return "智能排产Agent"
-    if any(x in q for x in ["设备","故障","维修","温度","振动","停机"]): return "设备运维Agent"
-    if any(x in q for x in ["质量","缺陷","不良","检测","批次异常"]): return "质量检测Agent"
-    if any(x in q for x in ["库存","采购","供应商","补货","缺料"]): return "供应链优化Agent"
+    q = q.lower()
+
+    # 1. 质量检测Agent：优先识别质量问题
+    if any(x in q for x in [
+        "质量", "缺陷", "不良", "检测",
+        "批次异常", "异常批次", "不良率"
+    ]):
+        return "质量检测Agent"
+
+    # 2. 设备运维Agent
+    if any(x in q for x in [
+        "设备", "故障", "维修", "温度",
+        "振动", "停机"
+    ]):
+        return "设备运维Agent"
+
+    # 3. 智能排产Agent
+    if any(x in q for x in [
+        "排产", "订单", "交期", "产能",
+        "生产计划"
+    ]):
+        return "智能排产Agent"
+
+    # 4. 供应链优化Agent
+    if any(x in q for x in [
+        "库存", "采购", "供应商", "补货",
+        "缺料", "安全库存"
+    ]):
+        return "供应链优化Agent"
+
+    # 5. 空间记忆Agent
+    if any(x in q for x in [
+        "找", "在哪", "位置", "库位",
+        "红色", "蓝色", "货架", "存放"
+    ]):
+        return "空间记忆Agent"
+
     return "Master Agent"
+
 
 def run_agent(q):
     agent=classify(q)
