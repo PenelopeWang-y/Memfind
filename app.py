@@ -78,17 +78,105 @@ def item_rows():
     with db() as c:
         return c.execute("SELECT * FROM items ORDER BY id DESC").fetchall()
 
+
 def find_items(q):
-    qn = q.lower().replace("那个","").replace("帮我找","").replace("查询","").strip()
+    # 文本标准化
+    def norm(s):
+        return re.sub(r"[\s，。！？、：；,.!?]", "", str(s or "")).lower()
+
+    qn = norm(q)
     rows = item_rows()
     scored = []
+
+    # 用户表达与数据库字段的语义映射
+    color_words = {
+        "红色": ["红色", "红"],
+        "蓝色": ["蓝色", "蓝"],
+        "白色": ["白色", "白"],
+        "黑色": ["黑色", "黑"]
+    }
+
+    urgency_words = {
+        "高": ["急件", "紧急", "加急", "优先", "高优先级"],
+        "普通": ["普通", "一般", "常规"]
+    }
+
+    # 判断用户是否提出了颜色条件
+    target_color = None
+    for color, words in color_words.items():
+        if any(w in qn for w in words):
+            target_color = color
+            break
+
+    # 判断用户是否提出了紧急程度条件
+    target_urgency = None
+    for urgency, words in urgency_words.items():
+        if any(w in qn for w in words):
+            target_urgency = urgency
+            break
+
     for r in rows:
-        text = " ".join([r["name"], r["aliases"] or "", r["color"] or "", r["urgency"] or "", r["zone"] or "", r["batch"] or ""]).lower()
+        def val(key):
+            return str(r[key] or "") if key in r.keys() else ""
+
+        name = norm(val("name"))
+        aliases = [
+            norm(x) for x in re.split(
+                r"[,，、;/；]", val("aliases")
+            ) if norm(x)
+        ]
+
+        color = norm(val("color"))
+        urgency = norm(val("urgency"))
+
         score = 0
-        for token in re.findall(r"[\u4e00-\u9fff]+|[a-zA-Z0-9-]+", qn):
-            if token and token in text: score += max(1, len(token))
-        if score: scored.append((score, r))
-    return [r for _,r in sorted(scored, key=lambda x:x[0], reverse=True)]
+
+        # 1. 名称匹配：权重最高
+        if name and name in qn:
+            score += 10
+
+        # 2. 别名匹配
+        for alias in aliases:
+            if alias and alias in qn:
+                score += 8
+
+        # 3. 颜色匹配
+        if target_color:
+            if color == norm(target_color):
+                score += 5
+            else:
+                score -= 3
+
+        # 4. 紧急程度匹配
+        if target_urgency:
+            if urgency == norm(target_urgency):
+                score += 5
+            else:
+                score -= 3
+
+        # 5. 区域匹配
+        zone = norm(val("zone"))
+        if zone and zone in qn:
+            score += 3
+
+        # 6. 批次匹配
+        batch = norm(val("batch"))
+        if batch and batch in qn:
+            score += 6
+
+        # 7. 货架号匹配
+        shelf = norm(val("shelf"))
+        if shelf and shelf in qn:
+            score += 3
+
+        if score > 0:
+            scored.append((score, r))
+
+    # 按匹配得分排序
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    return [r for score, r in scored]
+
 
 
 
