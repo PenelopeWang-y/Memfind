@@ -230,15 +230,45 @@ def run_agent(q):
     logs=[f"Master Agent：识别用户请求，初步分派至 {agent}。"]
     if agent=="空间记忆Agent":
         found=find_items(q)
-        if not found:
-            answer="暂时没有找到匹配物品。请补充颜色、物品名称、批次或大致区域；系统不会在信息不足时猜测库位。"
-        else:
-            r=found[0]
-            answer=f"找到候选物品：{r['name']}（匹配批次：{r['batch']}）。位置：{r['zone']} / {r['shelf']}号货架 / 第{r['level']}层 / {r['slot']}号位。库存：{r['quantity']}件；紧急程度：{r['urgency']}。"
-            if len(found)>1:
-                answer += f" 另有 {len(found)-1} 条候选记录，建议人工确认。"
-        logs += ["空间记忆Agent：对物品名称、别名、颜色、紧急程度、批次和库位字段进行检索。",
-                 "记忆库：读取 SQLite 结构化记录。"]
+        
+if not found:
+    answer = (
+        "暂时没有找到匹配物品。"
+        "请补充物品名称、颜色、批次或大致区域。"
+    )
+
+elif len(found) > 1:
+    # 多个候选结果，不直接选择第一条
+    candidates = found[:5]
+
+    answer = "找到多个候选物品，请确认你要查找的是哪一个：\n"
+
+    for i, r in enumerate(candidates, 1):
+        answer += (
+            f"\n{i}. {r['name']}"
+            f"（批次：{r['batch']}）"
+            f"（颜色：{r['color']}）"
+        )
+
+    answer += (
+        "\n\n请补充物品名称或批次，"
+        "确认后再查询具体库位。"
+    )
+
+else:
+    # 唯一匹配，返回完整位置
+    r = found[0]
+
+    answer = (
+        f"找到物品：{r['name']}\n"
+        f"匹配批次：{r['batch']}\n"
+        f"位置：{r['zone']} / "
+        f"{r['shelf']}号货架 / "
+        f"第{r['level']}层 / "
+        f"{r['slot']}号位\n"
+        f"库存数量：{r['quantity']}件"
+    )
+
     elif agent=="智能排产Agent":
         with db() as c: rows=c.execute("SELECT * FROM orders ORDER BY CASE priority WHEN '高' THEN 0 ELSE 1 END, due").fetchall()
         answer="模拟排产建议（演示数据）：\n"+ "\n".join([f"- {r['id']}｜{r['product']} × {r['quantity']}｜交期：{r['due']}｜优先级：{r['priority']}｜状态：{r['status']}" for r in rows])
